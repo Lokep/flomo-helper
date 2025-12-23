@@ -13,7 +13,8 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       colors: {
-        flomo: "#30cf79"
+        flomo: "#30cf79",
+       'flomo-dark': "#2bbb6d"
       },
     },
   },

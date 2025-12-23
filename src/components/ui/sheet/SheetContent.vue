@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DialogContentEmits, DialogContentProps } from 'reka-ui'
-import type { HTMLAttributes } from 'vue'
+import { useAttrs, type HTMLAttributes } from 'vue'
 import type { SheetVariants } from '.'
 import { reactiveOmit } from '@vueuse/core'
 import { X } from 'lucide-vue-next'
@@ -24,6 +24,7 @@ defineOptions({
 })
 
 const props = defineProps<SheetContentProps>()
+  const attrs = useAttrs()
 
 const emits = defineEmits<DialogContentEmits>()
 
@@ -33,7 +34,8 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
 
 <template>
-  <DialogPortal>
+  <!-- @vue-expect-error -->
+  <DialogPortal :to="attrs.to || 'body'">
     <DialogOverlay
       class="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
     />

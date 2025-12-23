@@ -18,3 +18,8 @@ export function valueUpdater<T extends Updater<any>>(updaterOrValue: T, ref: Ref
 export function isEmptyObject(obj: Record<string, any>) {
   return Object.keys(obj).length === 0
 }
+
+
+
+
+export function noop() {}

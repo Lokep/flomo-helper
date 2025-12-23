@@ -19,11 +19,24 @@ onMessage("greeting", ({ data }: BridgeMessage<{ name: string }>) => {
  *    1.从page的storage里获取me数据
  *    2. 如果me数据不存在，开启localstorage监听，监听me数据
  *    3. 在beforeunload事件中，取消localstorage监听
+ * 
+ * 
+ * ! 除了读取me，还要读取store:stat
  */
 
 const Flomo_Page = "https://v.flomoapp.com/mine";
 
-function doAuthentication() {}
+function doAuthentication() {
+
+}
+
+
+function checkAccesTokenAvailable() {
+  
+}
+
+
+
 
 chrome.action.onClicked.addListener(async (tab) => {
   const appStore = useAppStore();
@@ -34,14 +47,12 @@ chrome.action.onClicked.addListener(async (tab) => {
     await doAuthentication();
   }
 
-  console.log('tabId',tab.id)
-
   if (tab.id) {
     // https://github.com/serversideup/webext-bridge/issues/71
     // https://github.com/serversideup/webext-bridge/issues/37
     sendMessage(
       MessageKeys.Toggle_Sheet,
-      {},
+      tab as any,
       {
         tabId: tab.id,
         context: "content-script",

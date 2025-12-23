@@ -51,3 +51,9 @@ export const saveFileApi = ({
     size,
     path,
   });
+
+
+
+
+
+export const getUserMeApi = () => http.get("/user/me", {})

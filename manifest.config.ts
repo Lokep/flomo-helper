@@ -30,6 +30,7 @@ export default defineManifest({
     matches: [
       // 'https://*/*',
       'https://*.flomoapp.com/*',
+      'https://weread.qq.com/*' 
     ],
   }],
 
