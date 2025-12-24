@@ -9,10 +9,12 @@
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
+import { Spinner } from '@/components/ui/spinner';
 
   const props = defineProps<{
     open: boolean;
     text: string;
+    loading: boolean;
   }>()
 
   const emit = defineEmits<{
@@ -44,8 +46,12 @@
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel class="text-[#333] shadow-md !cursor-pointer !box-border" @click="cancel">&nbsp;&nbsp;取消&nbsp;&nbsp;</AlertDialogCancel>
-          <AlertDialogAction class="!cursor-pointer !box-border shadow-md"  @click="confirm">&nbsp;&nbsp;保存&nbsp;&nbsp;</AlertDialogAction>
+          <AlertDialogCancel class="text-[#333] shadow-md !cursor-pointer !box-border" @click="cancel">
+            &nbsp;&nbsp;取消&nbsp;&nbsp;
+          </AlertDialogCancel>
+          <AlertDialogAction class="!cursor-pointer !box-border shadow-md"  @click="confirm">
+            &nbsp;&nbsp;<Spinner v-if="loading" class="animate-spin" />保存&nbsp;&nbsp;
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

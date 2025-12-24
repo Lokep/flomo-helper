@@ -8,7 +8,9 @@
  * 5. 兼容 Chrome/Firefox/Edge
  */
 
-import { getFlomoMe, getSign, getTimeStamp, kSort } from "./auth";
+import { getSign, getTimeStamp, kSort } from "./auth";
+import { StorageKeys } from "./constant";
+import chromeStorage from "@/lib/storage"
 
 // 请求配置类型
 interface RequestOptions extends RequestInit {
@@ -56,7 +58,6 @@ class PluginFetch {
       "Content-Type": "application/json;charset=UTF-8",
       Origin: "https://v.flomoapp.com",
       Referer: "https://v.flomoapp.com/",
-      Authorization: `Bearer ${getFlomoMe().access_token}`,
     },
 
     baseURL: "https://flomoapp.com/api/v1",
@@ -108,6 +109,9 @@ class PluginFetch {
    */
   async request<T = any>(options: RequestOptions): Promise<ResponseResult<T>> {
     try {
+
+      const me = await chromeStorage.getItem(StorageKeys.Me)
+
       // 合并配置
       const config: RequestOptions = {
         ...this.defaultConfig,
@@ -115,19 +119,26 @@ class PluginFetch {
         headers: {
           ...this.defaultConfig.headers,
           ...options.headers,
+          // @ts-expect-error
+          Authorization: me ? `Bearer ${me.access_token}` : '',
         },
       };
 
       // 执行请求拦截器
       const finalConfig = await this.interceptors.request(config);
 
+      console.log('[request]', finalConfig);
+
       // 处理URL
       const fullUrl = finalConfig.baseURL
         ? `${finalConfig.baseURL.replace(/\/$/, "")}/${finalConfig.url.replace(
-            /^\//,
-            ""
-          )}`
+          /^\//,
+          ""
+        )}`
         : finalConfig.url;
+
+
+
       const urlWithParams =
         finalConfig.method?.toUpperCase() === "GET"
           ? this.buildUrl(fullUrl, finalConfig.params)
@@ -153,6 +164,8 @@ class PluginFetch {
           } else {
             fetchOptions.body = JSON.stringify(finalConfig.data);
           }
+
+          console.log('[request]', finalConfig.data, fetchOptions.body);
         }
         // GET请求的params单独处理
       } else if (fetchMethod === "GET" && finalConfig.params) {
@@ -172,9 +185,21 @@ class PluginFetch {
 
       // 解析响应（优先JSON，兼容文本）
       let responseData: any;
+
+      const contentType = response.headers.get('Content-Type') || '';
+
+
+
+      if (contentType.includes('application/xml') || contentType.includes('text/xml')) {
+        return { code: 0 , data: {} as any, msg: ''}
+      }
+
       try {
         responseData = await response.json();
-      } catch {
+      } catch(e) {
+
+        console.log('responseData', e);
+
         responseData = await response.text();
         // 非JSON格式包装成标准结构
         responseData = { code: 200, data: responseData, msg: "success" };
@@ -265,8 +290,12 @@ const pluginFetch = new PluginFetch();
 
 pluginFetch.setInterceptors({
   request: (config) => {
+    console.log("[request]", config)
+    if (config.method?.toUpperCase() === 'POST' && config.data instanceof FormData) {
+      return config;
+    }
 
-    const targetKey = config.method?.toLowerCase() === "GET" ? "params" : "data";
+    const targetKey = config.method?.toUpperCase() === "GET" ? "params" : "data";
 
     const sortedParams = kSort({
       timestamp: getTimeStamp(),

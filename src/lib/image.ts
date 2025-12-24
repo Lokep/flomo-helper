@@ -277,5 +277,5 @@ export const batchImageUrlToFile = async (
       results.push(null);
     }
   }
-  return results;
+  return results.filter(Boolean);
 };

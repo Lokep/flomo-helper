@@ -29,7 +29,8 @@
     "accessid",
     "lokep",
     "zumer",
-    "weread"
+    "weread",
+    "flomoapp"
   ],
   "ignorePaths": [
     "**/node_modules/**",

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { updateFlomoApi } from "@/api/flomo";
 import Editor from "@/components/editor/index.vue";
 import SaveToFlomoModal from '@/components/modal/save-to-flomo.vue';
 import SelectNode from "@/components/nodes/select.vue";
@@ -12,19 +13,22 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Spinner } from '@/components/ui/spinner';
 import { Switch } from "@/components/ui/switch";
-import { MessageKeys } from "@/lib/constant";
+import { MessageKeys, StorageKeys } from "@/lib/constant";
 import { ImageInfo, getImagesFromHtml, processHtmlInBrowser } from "@/lib/dom";
+import { batchImageUrlToFile } from "@/lib/image";
+import { uploadImage } from "@/lib/oss";
+import chromStorage from "@/lib/storage";
 import { noop } from "@/lib/utils";
 import { Editor as TEditor, isFunction } from "@tiptap/core";
-import { useBrowserLocation, useEventListener } from "@vueuse/core";
+import { useBrowserLocation, useEventListener, useMagicKeys } from "@vueuse/core";
 import { CircleX, Plus, Share, SquareDashedMousePointer, X } from "lucide-vue-next";
-import { h } from "vue";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Toaster, toast } from "vue-sonner";
 import { Position, Theme } from "vue-sonner/src/packages/types.ts";
 import { BridgeMessage } from "webext-bridge";
-import { onMessage } from "webext-bridge/content-script";
+import { onMessage, sendMessage } from "webext-bridge/content-script";
 
 const openStatus = ref(false);
 
@@ -34,6 +38,29 @@ const initialToastProps = {
   richColors: true
 }
 const toasterProps = ref(initialToastProps)
+
+
+/**
+ * 当前环境相关
+ */
+
+const location = useBrowserLocation()
+const isWeread = computed(() => {
+  if (!location.value) {
+    return false
+  }
+
+  return location.value.host?.includes('weread.qq.com')
+})
+
+const isFlomo = computed(() => {
+  if (!location.value) {
+    return false
+  }
+
+  return location.value.host?.includes('flomoapp.com')
+})
+
 
 const editorRef = ref<InstanceType<typeof SelectNode> | null>(null);
 const editorInstance = computed<TEditor>(() => {
@@ -48,7 +75,7 @@ const editorInstance = computed<TEditor>(() => {
 const initialFormState = {
   content: '',
   imgList: [] as ImageInfo[],
-  saveLink: false,
+  saveLink: true,
 }
 
 const formState = ref({
@@ -56,9 +83,9 @@ const formState = ref({
 });
 
 // showModalBeforeSheetCloseWhileFormStateChanged
-function showModalBeforeSheetClose() {
-  toast.warning('You have unsaved changes. Are you sure you want to close?');
-}
+// function showModalBeforeSheetClose() {
+//   toast.warning('You have unsaved changes. Are you sure you want to close?');
+// }
 
 function resetFormState() {
   formState.value = {
@@ -67,8 +94,7 @@ function resetFormState() {
 }
 
 function onCloseSheet() {
-  showModalBeforeSheetClose()
-  resetFormState();
+  // resetFormState();
   openStatus.value = false;
 }
 
@@ -92,14 +118,22 @@ function getHTML() {
  * 清空编辑器内容
  */
 function clearEditor() {
-  return editorInstance.value?.commands.clearContent();
+  return editorInstance.value?.commands.clearContent(true);
 }
 
 
 /**
  * 补充笔记，当 formState.value.saveLink === true，的时候，会自动补充链接
  */
-function patchLink(content: string) {
+async function patchLink(content: string) {
+
+  console.log('patchLink', content)
+
+  if (!currentTab.value) {
+    const tab = await getCurrentTab()
+
+    currentTab.value = tab
+  }
 
   const { title, url } = currentTab.value!
 
@@ -118,28 +152,118 @@ function patchLink(content: string) {
  * 保存flomo笔记
  */
 
+const loading = ref(false)
 
-/**
- * 处理剪贴板
- */
+function getImageExt(path: string) {
+  if (typeof path !== 'string') {
+    throw new TypeError('参数必须是字符串类型');
+  }
 
+  // 步骤1：去除URL中的查询参数（?及之后）和哈希值（#及之后）
+  const cleanPath = path
+    .split('?')[0] // 移除查询参数
+    .split('#')[0]; // 移除哈希值
 
-/**
- * 生成图片
- */
+  // 步骤2：处理路径，提取纯文件名（兼容 Windows/UNIX 路径）
+  const basename = cleanPath
+    .split(/[\\/]/) // 按 \ 或 / 分割路径，取最后一部分（纯文件名）
+    .pop() || '';
+
+  // 步骤3：判断是否为无后缀的隐藏文件（如 .gitignore）
+  if (basename.startsWith('.') && !basename.includes('.', 1)) {
+    return '';
+  }
+
+  // 步骤4：分割文件名和后缀（取最后一个点后的部分）
+  const lastDotIndex = basename.lastIndexOf('.');
+  if (lastDotIndex === -1) {
+    return ''; // 无后缀
+  }
+
+  // 步骤5：提取后缀并转为小写（统一格式）
+  const extension = basename.slice(lastDotIndex + 1);
+  return extension.toLowerCase();
+}
+
+function checkImageExt(list: ImageInfo[]) {
+  return list.every(item => {
+    const ext = getImageExt(item.src)
+
+    return ext.toLowerCase() === 'png' || ext === 'jpg' || ext === 'jpeg'
+  })
+}
+
+async function onSubmit() {
+  const { content, imgList, saveLink } = formState.value
+
+  const file_ids = [], text = saveLink ? await patchLink(content) : content
+
+  loading.value = true
+
+  try {
+    if (imgList.length > 0) {
+
+      const isImageTypeLegal = checkImageExt(imgList)
+
+      if (!isImageTypeLegal) {
+        toast.warning('图片类型不支持')
+        throw new Error('图片类型不支持')
+      }
+
+      const res = await uploadImageToFlomo(imgList)
+
+      file_ids.push(...res.map(item => item.id))
+    }
+
+    await saveToFlomo(text, file_ids)
+    clearEditor()
+    nextTick(resetFormState)
+  } finally {
+    loading.value = false
+
+  }
+}
+
 
 
 /**
  * 查找节点
  */
-const location = useBrowserLocation()
 const selectNodeVisible = ref(false)
 const toastId = ref()
+const toastText = computed(() => {
+  return `${selections.value.length === 0 ? '正在选取内容...' : ('已选择' + selections.value.length + '个节点')}, 按Esc退出`
+})
+
+const selections = ref<HTMLElement[]>([])
+
+watch(selections, (s) => {
+  if (s.length === 0) {
+    return
+  }
+
+  toast(toastText.value, {
+    id: toastId.value,
+    duration: Infinity,
+    action: {
+      label: '退出',
+      onClick: () => {
+        quitSelectNode()
+      }
+    }
+  })
+
+}, {
+  immediate: true,
+  deep: true
+})
 
 function startSelectNote() {
   selectNodeVisible.value = true
 
-  toastId.value = toast("正在选取内容...", {
+  openStatus.value = false
+
+  toastId.value = toast(toastText.value, {
     duration: Infinity,
     action: {
       label: '退出',
@@ -150,22 +274,31 @@ function startSelectNote() {
   })
 }
 
-
-
+function watchEscape(e: any) {
+  if (e.key === 'Escape') {
+    if (selectNodeVisible.value) {
+      quitSelectNode()
+    } else if (openStatus.value) {
+      openStatus.value = false
+    }
+  }
+}
 
 
 function getSelectedElement(element: HTMLElement) {
 
-  const processedHtml = processHtmlInBrowser(`<p>${element.outerHTML}</p>`)
+  if (!openStatus.value) {
+    selections.value.push(element)
+    return 
+  }
 
+  const processedHtml = processHtmlInBrowser(`<p>${element.outerHTML}</p>`)
   const images = getImagesFromHtml(element.outerHTML)
 
-  quitSelectNode()
-
-  console.log('processedHtml', processedHtml)
-
-
+  // quitSelectNode()
   editorInstance.value?.commands.insertContent(processedHtml)
+
+  console.log('processedHtml', element)
 
   if (images && images.length) {
     formState.value.imgList.push(...images)
@@ -176,9 +309,15 @@ function getSelectedElement(element: HTMLElement) {
 function removeImg(index: number) {
   formState.value.imgList.splice(index, 1)
 }
-
-function quitSelectNode() {
+async function quitSelectNode() {
   selectNodeVisible.value = false
+  openStatus.value = true
+
+  for (const selection of selections.value) {
+    await nextTick(() => getSelectedElement(selection))
+  }
+
+  selections.value = []
 
   if (toastId.value) {
     toast.dismiss(toastId.value)
@@ -217,17 +356,10 @@ const selectNodeEnabled = computed(() => {
   return !location.value.host?.includes('weread.qq.com')
 })
 
-const isWeread = computed(() => {
-  if (!location.value) {
-    return false
-  }
-
-  return location.value.host?.includes('weread.qq.com')
-})
-
 const saveToFlomoModalState = ref({
   visible: false,
-  text: ''
+  text: '',
+  loading: false
 })
 function showSaveToFlomoModal(text: string) {
   console.log('showSaveToFlomoModal', text)
@@ -244,10 +376,17 @@ function onSaveToFlomoModalClose() {
   saveToFlomoModalState.value.text = ''
 }
 
-function onSaveToFlomoModalSave() {
-  // TODO save to flomo
+async function onSaveToFlomoModalSave() {
+  const { text } = saveToFlomoModalState.value
+  const content = await patchLink(`<p>${text}</p>`)
 
-  onSaveToFlomoModalClose()
+  try {
+    saveToFlomoModalState.value.loading = true
+    await saveToFlomo(content)
+    onSaveToFlomoModalClose()
+  } finally {
+    saveToFlomoModalState.value.loading = false
+  }
 }
 
 const cancelCopyFn = ref()
@@ -284,19 +423,87 @@ function watchCopyButton() {
 }
 
 
+function watchLocalStorage() {
+  const stopStorageFn = useEventListener('storage', (e: any) => {
+    if (e.storageArea === localStorage) {
+      // console.log("localStorage 发生了变化");
+      // console.log("变化的键名: ", e.key);
+      // console.log("旧值: ", e.oldValue);
+      // console.log("新值: ", e.newValue);
+      // console.log("变化发生的 URL: ", e.url);
+
+      if (e.key === StorageKeys.Me || e.key === StorageKeys.Stat) {
+        chromStorage.setItem(e.key, e.newValue)
+      }
+
+      if (e.key === StorageKeys.Me && e.newValue && e.newValue !== '{}') {
+        stopStorageFn()
+      }
+    }
+  })
+}
+
+function getLocalStorageDataFromFlomo() {
+  const me = localStorage.getItem(StorageKeys.Me)
+  const stat = localStorage.getItem(StorageKeys.Stat)
+
+  if (me && me !== '{}') {
+    chromStorage.setItem(StorageKeys.Me, JSON.parse(me))
+  } else {
+    watchLocalStorage()
+  }
+
+  if (stat && stat !== '{}') {
+    chromStorage.setItem(StorageKeys.Stat, JSON.parse(stat))
+  }
+}
+
+async function uploadImageToFlomo(list: ImageInfo[]) {
+  const files = await batchImageUrlToFile(list.map(item => item.src))
+  const urls = []
+
+  for (const file of files) {
+    const res = await uploadImage(file!)
+
+    urls.push(res)
+  }
+
+  return urls
+}
+
+function saveToFlomo(text: string, file_ids: string[] = []) {
+  return updateFlomoApi(text, file_ids).then(res => {
+    if (res.code === 0) {
+      toast.success('保存成功')
+    } else {
+      toast.error('保存失败')
+    }
+  })
+}
+
+
+function getCurrentTab() {
+  return new Promise<chrome.tabs.Tab | undefined>(resolve => {
+    sendMessage(MessageKeys.Get_Current_Tab, {}).then((tab: any) => {
+      resolve(tab)
+    });
+  })
+}
+
+
 onMessage(MessageKeys.Toggle_Sheet, ({ data }: BridgeMessage<any>) => {
   console.log("toggle sheet", data);
   currentTab.value = data;
-  
+
   if (!isWeread.value) {
     openStatus.value = !openStatus.value;
   }
+
 });
 
 
 onMounted(() => {
   nextTick(() => {
-    console.log("mounted", isWeread.value);
 
     if (isWeread.value) {
       const stopFn = useEventListener('click', (e) => {
@@ -309,16 +516,22 @@ onMounted(() => {
       })
     }
 
+    // 以下逻辑看 src/background/main.ts 中的注释
+    if (isFlomo.value) {
+      getLocalStorageDataFromFlomo()
+    }
+    document.addEventListener('keydown', watchEscape)
   })
 })
 
 onBeforeUnmount(() => {
   isFunction(cancelCopyFn.value) && cancelCopyFn.value()
+  document.removeEventListener('keydown', watchEscape)
 })
 </script>
 
 <template>
-  <Sheet v-model:open="openStatus" :modal="false">
+  <Sheet v-model:open="openStatus" :modal="false" forceMount>
     <SheetContent class="my-4 right-4 h-auto rounded-xl p-4 flex flex-col border-l-0"
       style="background-color: #fafafa; z-index: 99999;" :disableOutsidePointerEvents="true" to="#crxjs-app"
       @escapeKeyDown.prevent="noop" @closeAutoFocus.prevent="noop" @openAutoFocus.prevent="noop"
@@ -375,13 +588,8 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="upload grid grid-cols-5 gap-4 shrink-0">
-            <!-- <div class="size-12 rounded relative">
-              <CircleX class="absolute -right-2 -top-2 text-gray-300 hover:text-gray-600 cursor-pointer z-10" />
-              <img class="size-full object-cover block rounded !p-0 !m-0" src="https://picsum.photos/200/300" alt="">
-            </div> -->
-
             <div class="size-12 rounded relative" v-for="(item, index) in formState.imgList" :key="index">
-              <CircleX class="absolute -right-2 -top-2 text-gray-300 hover:text-gray-600 cursor-pointer z-10"
+              <CircleX class="absolute -right-2 -top-2 text-gray-300 hover:text-gray-600 cursor-pointer z-10 size-3"
                 @click="() => removeImg(index)" />
               <img class="size-full object-cover block rounded !p-0 !m-0" :src="item.src" alt="">
             </div>
@@ -397,9 +605,11 @@ onBeforeUnmount(() => {
 
         <!-- bottombar 提交按钮 -->
         <div class="child">
-          <Button class="bg-flomo w-full hover:bg-flomo-dark">
+          <Button class="bg-flomo w-full hover:bg-flomo-dark" @click="onSubmit">
             保存到 Flomo
-            <svg data-v-b093eae6="" width="44" height="28" viewBox="0 0 44 28" fill="none"
+
+            <Spinner v-if="loading" class="animate-spin" />
+            <svg v-else data-v-b093eae6="" width="44" height="28" viewBox="0 0 44 28" fill="none"
               xmlns="http://www.w3.org/2000/svg" class="!size-10 -ml-4">
               <rect data-v-b093eae6="" width="44" height="27.0769" rx="6" fill="transparent"></rect>
               <path data-v-b093eae6=""
@@ -440,7 +650,7 @@ onBeforeUnmount(() => {
   <ShareModal v-model:open="shareEnabled" :richText="formState.content" :imgList="formState.imgList" />
 
   <SaveToFlomoModal :open="saveToFlomoModalState.visible" :text="saveToFlomoModalState.text"
-    @close="onSaveToFlomoModalClose" @confirm="onSaveToFlomoModalSave" />
+    :loading="saveToFlomoModalState.loading" @close="onSaveToFlomoModalClose" @confirm="onSaveToFlomoModalSave" />
 </template>
 
 <style lang="scss" scoped>

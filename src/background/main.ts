@@ -1,7 +1,10 @@
-import { MessageKeys } from "@/lib/constant";
-import { useAppStore } from "@/store";
+import { MessageKeys, StorageKeys } from "@/lib/constant";
 import type { BridgeMessage } from "webext-bridge";
 import { onMessage, sendMessage } from "webext-bridge/background";
+import chromStorage from "@/lib/storage";
+import { authData } from "@/lib/auth";
+import { getUserMeApi } from "@/api/flomo";
+import { tryCatch } from "@/lib/tryCatch";
 
 onMessage("greeting", ({ data }: BridgeMessage<{ name: string }>) => {
   return `hello${data.name}`;
@@ -26,22 +29,37 @@ onMessage("greeting", ({ data }: BridgeMessage<{ name: string }>) => {
 
 const Flomo_Page = "https://v.flomoapp.com/mine";
 
-function doAuthentication() {
+async function doAuthentication() {
+  const hasAuthData = await authData()
 
+  if (hasAuthData) {
+    const [res] = await tryCatch(getUserMeApi)
+
+    return res?.code === 0
+  }
+
+  return false
 }
 
 
-function checkAccesTokenAvailable() {
+function getActiveTab() {
+  return new Promise((resolve) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      resolve(tabs[0])
+    })
+  })
+}
+
+
+onMessage(MessageKeys.Get_Current_Tab, async (e) => {
+  const tab = await getActiveTab()
   
-}
-
-
+  return tab
+})
 
 
 chrome.action.onClicked.addListener(async (tab) => {
-  const appStore = useAppStore();
-
-  appStore.setCurrentTab(tab);
+  chromStorage.setItem(StorageKeys.CurrentTab, tab);
 
   if (!tab.url?.includes(Flomo_Page)) {
     await doAuthentication();

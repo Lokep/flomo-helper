@@ -1,18 +1,17 @@
-import { useAppStore } from "@/store";
+
 import { isEmptyObject } from "./utils";
 import md5 from "md5"
+import chromStorage from "@/lib/storage";
+import { StorageKeys } from "./constant";
 
-export function doAuthentication() {
-  const appStore = useAppStore();
+export async function authData() {
+  const me = await chromStorage.getItem(StorageKeys.Me) || {}
 
-  return !isEmptyObject(appStore.me);
+  console.log('me', me);
+
+  return !isEmptyObject(me);
 }
 
-export function getFlomoMe() {
-  const appStore = useAppStore();
-
-  return appStore.me;
-}
 
 export function kSort(e: Record<string, any>) {
   const sortedKeys = Object.keys(e).sort();

@@ -8,6 +8,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { Placeholder } from '@tiptap/extensions'
 import { Hashtag } from '@/plugins/hashtag'
+import Link from '@tiptap/extension-link'
 
 
 const props = defineProps({
@@ -28,6 +29,13 @@ const editor = useEditor({
     }),
     Placeholder.configure({
       placeholder: '划词选中同步文字，粘贴或输入内容 \r\n按Shift+Enter保存 🎉',
+    }),
+    Link.configure({
+      openOnClick: true,
+      defaultProtocol: 'https',
+      HTMLAttributes: {
+        class: 'tiptap-link',
+      },
     }),
   ],
 
@@ -119,5 +127,15 @@ span[data-type="hashtag"] {
   cursor: pointer;
   padding: 2px 4px;
   margin-right: 2px;
+}
+
+.tiptap-link {
+  @apply mx-1 p-1;
+  cursor: pointer!important;
+  color: #30cf79!important;
+
+  &:hover {
+    @apply bg-slate-200 rounded-sm;
+  }
 }
 </style>

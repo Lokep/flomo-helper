@@ -1,36 +1,23 @@
-const cache = new Map()
 
-export async function initChromeStorageCache(key: string) {
-  try {
-    const result = await chrome.storage.local.get(key)
-
-    cache.set(key, result[key])
-  }
-  catch (err) {
-    console.error('初始化 chrome.storage 缓存失败：', err)
-  }
-}
 
 /**
  * 仅用于浏览器，非同步
  */
 class ChromeStorage {
-  getItem(key: string) {
+  async getItem(key: string) {
     if (!key) {
       return null
     }
 
-    //  return chrome.storage.local.get(key)
-    return cache.get(key) || null
+     const cache = await chrome.storage.local.get(key)
+
+     return cache[key]
   }
 
   setItem<T>(key: string, value: T) {
     if (!key) {
       return false
     }
-
-    // 先更新内存缓存（保证后续读取是最新值）
-    cache.set(key, value)
 
     // 异步写入 chrome.storage（非阻塞）
     chrome.storage.local.set({ [key]: value }).catch((err) => {
@@ -39,15 +26,12 @@ class ChromeStorage {
   }
 
   removeItem(key: string) {
-    cache.delete(key)
-
     chrome.storage.local.remove(key).catch((err) => {
       console.error('移除 chrome.storage 失败：', err)
     })
   }
 
   clear() {
-    cache.clear()
     chrome.storage.local.clear()
   }
 

@@ -71,9 +71,6 @@ importers:
       md5:
         specifier: ^2.3.0
         version: 2.3.0
-      pinia:
-        specifier: ^3.0.4
-        version: 3.0.4(typescript@5.8.3)(vue@3.5.25(typescript@5.8.3))
       pinia-plugin-persistedstate:
         specifier: ^4.7.1
         version: 4.7.1(pinia@3.0.4(typescript@5.8.3)(vue@3.5.25(typescript@5.8.3)))
@@ -3844,6 +3841,7 @@ snapshots:
   '@vue/devtools-api@7.7.9':
     dependencies:
       '@vue/devtools-kit': 7.7.9
+    optional: true
 
   '@vue/devtools-kit@7.7.9':
     dependencies:
@@ -3854,10 +3852,12 @@ snapshots:
       perfect-debounce: 1.0.0
       speakingurl: 14.0.1
       superjson: 2.2.6
+    optional: true
 
   '@vue/devtools-shared@7.7.9':
     dependencies:
       rfdc: 1.4.1
+    optional: true
 
   '@vue/language-core@3.1.8(typescript@5.8.3)':
     dependencies:
@@ -3991,7 +3991,8 @@ snapshots:
 
   binary-extensions@2.3.0: {}
 
-  birpc@2.9.0: {}
+  birpc@2.9.0:
+    optional: true
 
   boolbase@1.0.0: {}
 
@@ -4123,6 +4124,7 @@ snapshots:
   copy-anything@4.0.5:
     dependencies:
       is-what: 5.5.0
+    optional: true
 
   core-js-compat@3.47.0:
     dependencies:
@@ -4673,7 +4675,8 @@ snapshots:
 
   he@1.2.0: {}
 
-  hookable@5.5.3: {}
+  hookable@5.5.3:
+    optional: true
 
   html-entities@2.6.0: {}
 
@@ -4735,7 +4738,8 @@ snapshots:
 
   is-number@7.0.0: {}
 
-  is-what@5.5.0: {}
+  is-what@5.5.0:
+    optional: true
 
   isarray@1.0.0: {}
 
@@ -5175,7 +5179,8 @@ snapshots:
     dependencies:
       brace-expansion: 2.0.2
 
-  mitt@3.0.1: {}
+  mitt@3.0.1:
+    optional: true
 
   mlly@1.8.0:
     dependencies:
@@ -5285,7 +5290,8 @@ snapshots:
 
   pathe@2.0.3: {}
 
-  perfect-debounce@1.0.0: {}
+  perfect-debounce@1.0.0:
+    optional: true
 
   picocolors@1.1.1: {}
 
@@ -5307,6 +5313,7 @@ snapshots:
       vue: 3.5.25(typescript@5.8.3)
     optionalDependencies:
       typescript: 5.8.3
+    optional: true
 
   pirates@4.0.7: {}
 
@@ -5563,7 +5570,8 @@ snapshots:
 
   reusify@1.1.0: {}
 
-  rfdc@1.4.1: {}
+  rfdc@1.4.1:
+    optional: true
 
   rollup@2.79.2:
     optionalDependencies:
@@ -5680,7 +5688,8 @@ snapshots:
 
   spdx-license-ids@3.0.22: {}
 
-  speakingurl@14.0.1: {}
+  speakingurl@14.0.1:
+    optional: true
 
   string_decoder@1.1.1:
     dependencies:
@@ -5703,6 +5712,7 @@ snapshots:
   superjson@2.2.6:
     dependencies:
       copy-anything: 4.0.5
+    optional: true
 
   supports-color@7.2.0:
     dependencies:

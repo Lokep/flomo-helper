@@ -22,7 +22,6 @@ export default defineManifest({
     default_icon: {
       48: 'public/logo.png',
     },
-    // default_popup: 'src/popup/index.html',
   },
 
   content_scripts: [{
@@ -30,7 +29,8 @@ export default defineManifest({
     matches: [
       // 'https://*/*',
       'https://*.flomoapp.com/*',
-      'https://weread.qq.com/*' 
+      'https://weread.qq.com/*' ,
+      'https://x.com/*'
     ],
   }],
 
@@ -43,8 +43,4 @@ export default defineManifest({
     // 'clipboardWrite',
     // 'clipboardRead',
   ],
-
-  // side_panel: {
-  //   default_path: 'src/sidepanel/index.html',
-  // },
 })

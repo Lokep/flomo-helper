@@ -5,14 +5,14 @@ function getExt(file: File) {
   return file.name.slice(file.name.lastIndexOf("."));
 }
 
-export async function generateFormData(file: File, filename: string, oss: any) {
+export function generateFormData(file: File, filename: string, oss: any) {
   const formData = new FormData();
 
   if (!oss) {
     return null;
   }
 
-  formData.append("name", file.name);
+  formData.append("name", filename);
   formData.append("key", oss.dir + "/" + filename);
   formData.append("policy", oss.policy);
   formData.append("OSSAccessKeyId", oss.accessId);
@@ -54,7 +54,9 @@ export async function uploadImage(file: File) {
   const filename = Date.now() + getExt(file);
   const formData = generateFormData(file, filename, oss);
 
-  await http.post(oss?.host, formData);
+  await http.post(oss?.host, formData!, {
+    baseURL: "",
+  });
 
   return saveFileApi({
     name: file.name,
